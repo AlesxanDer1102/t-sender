@@ -3,8 +3,8 @@
 ## Author: AlesxanDer1102
 
 1. Create a basic react/nextjs application
-
-2. Implement this function
+2. Connect our wallet
+3. Implement this function
 ```solidity
     function aidropERC20(
         address tokenAddress,
@@ -16,4 +16,4 @@
 ```
 Aceptable inputs
 
-3. Deploy to fleek
+4. Deploy to fleek

@@ -1,9 +1,10 @@
 "use client";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import InputField from "./ui/InputField";
 import { chainsToTSender, tsenderAbi, erc20Abi } from "@/constants";
-import { useChainId, useConfig, useAccount } from "wagmi";
-import { readContract } from "@wagmi/core";
+import { useChainId, useConfig, useAccount, useWriteContract } from "wagmi";
+import { readContract,waitForTransactionReceipt } from "@wagmi/core";
+import { calculateTotal } from "@/utils/calculatetTotal/calculateTotal";
 
 export default function AirdropForm() {
   const [tokenAddress, setTokenAddress] = useState("");
@@ -12,6 +13,11 @@ export default function AirdropForm() {
   const chainId = useChainId();
   const config = useConfig();
   const account = useAccount();
+
+  const total=useMemo(()=> calculateTotal(amounts), [amounts])
+  const {data:hash, isPending,writeContractAsync}= useWriteContract()
+
+
 
   async function getApprovedAmount(
     tSenderAddress: string | null
@@ -40,6 +46,49 @@ export default function AirdropForm() {
     const tSenderAddress = chainsToTSender[chainId]["tsender"];
     const approveAmount = await getApprovedAmount(tSenderAddress);
     console.log("approveAmount:", approveAmount);
+
+    if(approveAmount<total){
+      const approvalHash=await writeContractAsync({
+        abi:erc20Abi,
+        address:tokenAddress as `0x${string}`,
+        functionName:"approve",
+        args:[tSenderAddress as `0x${string}`, BigInt(total)]
+      })
+
+      const approvalReceipt = await waitForTransactionReceipt(config,{hash:approvalHash})
+      
+      console.log("Approval confirmed:",approvalReceipt)
+      const airdropHash= await writeContractAsync({
+        abi:tsenderAbi,
+        address:tSenderAddress as `0x${string}`,
+        functionName:"airdropERC20",
+        args:[tokenAddress,
+          recipients.split(/[,\n]+/).map(addr=>addr.trim()).filter(addr=>addr !== ''),
+          amounts.split(/[,\n]+/).map(amount=>amount.trim()).filter(amt => amt!==''),
+          BigInt(total)
+        ]
+      })
+
+      const airdropReceipt = await waitForTransactionReceipt(config,{hash:airdropHash})
+      console.log("Airdrop confirmed:",airdropReceipt)
+
+    }else {
+      const airdropHash= await writeContractAsync({
+        abi:tsenderAbi,
+        address:tSenderAddress as `0x${string}`,
+        functionName:"airdropERC20",
+        args:[tokenAddress,
+          recipients.split(/[,\n]+/).map(addr=>addr.trim()).filter(addr=>addr !== ''),
+          amounts.split(/[,\n]+/).map(amount=>amount.trim()).filter(amt => amt!==''),
+          BigInt(total)
+        ]
+      })
+
+      const airdropReceipt = await waitForTransactionReceipt(config,{hash:airdropHash})
+      console.log("Airdrop confirmed:",airdropReceipt)
+    }    
+
+
   }
 
   return (
@@ -83,7 +132,7 @@ export default function AirdropForm() {
         onClick={handleSubmit}
         className="w-full bg-gradient-to-r from-slate-700 to-slate-600 hover:from-slate-600 hover:to-slate-500 text-white py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:ring-offset-2 focus:ring-offset-transparent transition-all duration-200 font-semibold tracking-wide shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 border border-cyan-500/20 hover:border-cyan-400/40"
       >
-        Execute Airdrop
+        Send Tokens
       </button>
     </div>
   );

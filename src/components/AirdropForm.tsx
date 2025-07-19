@@ -2,9 +2,10 @@
 import { useEffect, useMemo, useState } from "react";
 import InputField from "./ui/InputField";
 import { chainsToTSender, tsenderAbi, erc20Abi } from "@/constants";
-import { useChainId, useConfig, useAccount, useWriteContract } from "wagmi";
+import { useChainId, useConfig, useAccount, useWriteContract, useReadContracts } from "wagmi";
 import { readContract,waitForTransactionReceipt } from "@wagmi/core";
 import { calculateTotal } from "@/utils/calculatetTotal/calculateTotal";
+import { formatTokenAmount } from "@/utils/formatTokenAmount/formatTokenAmount";
 
 export default function AirdropForm() {
   const [tokenAddress, setTokenAddress] = useState(() => {
@@ -25,15 +26,40 @@ export default function AirdropForm() {
     }
     return "";
   });
-  const [tokenName, setTokenName] = useState("");
-  const [tokenSymbol, setTokenSymbol] = useState("");
-  const [tokenDecimals, setTokenDecimals] = useState(0); // Default to 18 decimals
   const chainId = useChainId();
   const config = useConfig();
   const account = useAccount();
 
   const total=useMemo(()=> calculateTotal(amounts), [amounts])
   const {data:hash, isPending,writeContractAsync}= useWriteContract()
+
+  const {data:tokenData} = useReadContracts({
+        contracts:[
+          {
+            abi: erc20Abi,
+            address: tokenAddress as `0x${string}`,
+            functionName: "name",
+          },
+          {
+            abi: erc20Abi,
+            address: tokenAddress as `0x${string}`,
+            functionName: "symbol",
+          },
+          {
+            abi: erc20Abi,
+            address: tokenAddress as `0x${string}`,
+            functionName: "decimals",
+          },
+          {
+            abi: erc20Abi,
+            address: tokenAddress as `0x${string}`,
+            functionName: "balanceOf",
+            args: [account.address as `0x${string}`],
+          }
+        ]
+      })
+
+    const [hasEnoughTokens, setHasEnoughTokens] = useState(false);
 
   // Guardar datos en localStorage cuando cambien
   useEffect(() => {
@@ -54,49 +80,13 @@ export default function AirdropForm() {
     }
   }, [amounts]);
 
-useEffect(() => {
-  if (!tokenAddress || tokenAddress.length !== 42 || !tokenAddress.startsWith('0x') || !/^0x[a-fA-F0-9]{40}$/.test(tokenAddress)) {
-    setTokenName("");
-    setTokenSymbol("");
-    setTokenDecimals(0);
-    return;
-  }
-
-  async function fetchTokenData() {
-    try {
-      const [name, symbol, decimals] = await Promise.all([
-        readContract(config, {
-          abi: erc20Abi,
-          address: tokenAddress as `0x${string}`,
-          functionName: "name",
-        }),
-        readContract(config, {
-          abi: erc20Abi,
-          address: tokenAddress as `0x${string}`,
-          functionName: "symbol",
-        }),
-        readContract(config, {
-          abi: erc20Abi,
-          address: tokenAddress as `0x${string}`,
-          functionName: "decimals",
-        })
-      ]);
-
-      setTokenName(name as string);
-      setTokenSymbol(symbol as string);
-      setTokenDecimals(decimals as number);
-      
-      console.log("Token Data:", { name, symbol, decimals });
-    } catch (error) {
-      console.error("Error fetching token data:", error);
-      setTokenName("");
-      setTokenSymbol("");
-      setTokenDecimals(0);
+  useEffect(() => {
+    if (tokenData && tokenData[3]?.result) {
+      const balance = Number(tokenData[3].result);
+      const totalAmount = Number(total);
+      setHasEnoughTokens(balance >= totalAmount);
     }
-  }
-
-  fetchTokenData();
-}, [tokenAddress, config]);
+  }, [tokenData, total]);
 
   async function getApprovedAmount(
     tSenderAddress: string | null
@@ -228,23 +218,23 @@ useEffect(() => {
         <div className="space-y-2">
           <div className="flex justify-between items-center">
             <span className="text-gray-300 font-medium">Token Name:</span>
-            <span className="text-cyan-400 font-semibold">{tokenName || 'N/A'}</span>
+            <span className="text-cyan-400 font-semibold">{tokenData?.[0]?.result as string || 'N/A'}</span>
           </div>
           <div className="flex justify-between items-center">
             <span className="text-gray-300 font-medium">Token Symbol:</span>
-            <span className="text-cyan-400 font-semibold">{tokenSymbol || 'N/A'}</span>
+            <span className="text-cyan-400 font-semibold">{tokenData?.[1]?.result as string|| 'N/A'}</span>
           </div>
           <div className="flex justify-between items-center">
             <span className="text-gray-300 font-medium">Token Decimals:</span>
-            <span className="text-cyan-400 font-semibold">{tokenDecimals || 'N/A'}</span>
+            <span className="text-cyan-400 font-semibold">{tokenData?.[2]?.result as string|| 'N/A'}</span>
           </div>
           <div className="flex justify-between items-center border-t border-slate-600 pt-2 mt-3">
             <span className="text-gray-300 font-medium">Total Amount ( wei ):</span>
-            <span className="text-green-400 font-bold">{total || "0"} </span>
+            <span className="text-green-400 font-bold">{total.toString() || "0"} </span>
           </div>
             <div className="flex justify-between items-center ">
             <span className="text-gray-300 font-medium">Total Amount (tokens):</span>
-            <span className="text-green-400 font-bold">{tokenDecimals > 0 ? (total / Math.pow(10, tokenDecimals)).toFixed(6) : '0'} </span>
+            <span className="text-green-400 font-bold">{formatTokenAmount(total, tokenData?.[2]?.result as number)} </span>
             </div>
         </div>
       </div>
@@ -260,6 +250,7 @@ useEffect(() => {
 
       <button
         onClick={handleSubmit}
+        disabled={!hasEnoughTokens || isPending}
         className="w-full bg-gradient-to-r from-slate-700 to-slate-600 hover:from-slate-600 hover:to-slate-500 text-white py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:ring-offset-2 focus:ring-offset-transparent transition-all duration-200 font-semibold tracking-wide shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 border border-cyan-500/20 hover:border-cyan-400/40"
       >
         Send Tokens

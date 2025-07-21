@@ -1,5 +1,5 @@
-import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { FaGithub } from "react-icons/fa";
+import { ConnectButton } from "@rainbow-me/rainbowkit"
+import { FaGithub } from "react-icons/fa"
 
 export default function Header() {
   return (
@@ -19,5 +19,5 @@ export default function Header() {
       </div>
       <ConnectButton />
     </header>
-  );
+  )
 }

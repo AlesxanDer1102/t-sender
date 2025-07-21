@@ -1,99 +1,99 @@
-"use client";
-import { useEffect, useMemo, useState } from "react";
-import InputField from "./ui/InputField";
-import { chainsToTSender, tsenderAbi, erc20Abi } from "@/constants";
-import { useChainId, useConfig, useAccount, useWriteContract, useReadContracts } from "wagmi";
-import { readContract,waitForTransactionReceipt } from "@wagmi/core";
-import { calculateTotal } from "@/utils/calculatetTotal/calculateTotal";
-import { formatTokenAmount } from "@/utils/formatTokenAmount/formatTokenAmount";
+"use client"
+import { useEffect, useMemo, useState } from "react"
+import InputField from "./ui/InputField"
+import { chainsToTSender, tsenderAbi, erc20Abi } from "@/constants"
+import { useChainId, useConfig, useAccount, useWriteContract, useReadContracts } from "wagmi"
+import { readContract, waitForTransactionReceipt } from "@wagmi/core"
+import { calculateTotal } from "@/utils/calculatetTotal/calculateTotal"
+import { formatTokenAmount } from "@/utils/formatTokenAmount/formatTokenAmount"
 
 export default function AirdropForm() {
   const [tokenAddress, setTokenAddress] = useState(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('airdrop_tokenAddress') || "";
+      return localStorage.getItem('airdrop_tokenAddress') || ""
     }
-    return "";
-  });
+    return ""
+  })
   const [recipients, setRecipients] = useState(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('airdrop_recipients') || "";
+      return localStorage.getItem('airdrop_recipients') || ""
     }
-    return "";
-  });
+    return ""
+  })
   const [amounts, setAmounts] = useState(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('airdrop_amounts') || "";
+      return localStorage.getItem('airdrop_amounts') || ""
     }
-    return "";
-  });
-  const chainId = useChainId();
-  const config = useConfig();
-  const account = useAccount();
+    return ""
+  })
+  const chainId = useChainId()
+  const config = useConfig()
+  const account = useAccount()
 
-  const total=useMemo(()=> calculateTotal(amounts), [amounts])
-  const {data:hash, isPending,writeContractAsync}= useWriteContract()
+  const total = useMemo(() => calculateTotal(amounts), [amounts])
+  const { data: hash, isPending, writeContractAsync } = useWriteContract()
 
-  const {data:tokenData} = useReadContracts({
-        contracts:[
-          {
-            abi: erc20Abi,
-            address: tokenAddress as `0x${string}`,
-            functionName: "name",
-          },
-          {
-            abi: erc20Abi,
-            address: tokenAddress as `0x${string}`,
-            functionName: "symbol",
-          },
-          {
-            abi: erc20Abi,
-            address: tokenAddress as `0x${string}`,
-            functionName: "decimals",
-          },
-          {
-            abi: erc20Abi,
-            address: tokenAddress as `0x${string}`,
-            functionName: "balanceOf",
-            args: [account.address as `0x${string}`],
-          }
-        ]
-      })
+  const { data: tokenData } = useReadContracts({
+    contracts: [
+      {
+        abi: erc20Abi,
+        address: tokenAddress as `0x${string}`,
+        functionName: "name",
+      },
+      {
+        abi: erc20Abi,
+        address: tokenAddress as `0x${string}`,
+        functionName: "symbol",
+      },
+      {
+        abi: erc20Abi,
+        address: tokenAddress as `0x${string}`,
+        functionName: "decimals",
+      },
+      {
+        abi: erc20Abi,
+        address: tokenAddress as `0x${string}`,
+        functionName: "balanceOf",
+        args: [account.address as `0x${string}`],
+      }
+    ]
+  })
 
-    const [hasEnoughTokens, setHasEnoughTokens] = useState(false);
+  const [hasEnoughTokens, setHasEnoughTokens] = useState(false)
 
   // Guardar datos en localStorage cuando cambien
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      localStorage.setItem('airdrop_tokenAddress', tokenAddress);
+      localStorage.setItem('airdrop_tokenAddress', tokenAddress)
     }
-  }, [tokenAddress]);
+  }, [tokenAddress])
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      localStorage.setItem('airdrop_recipients', recipients);
+      localStorage.setItem('airdrop_recipients', recipients)
     }
-  }, [recipients]);
+  }, [recipients])
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      localStorage.setItem('airdrop_amounts', amounts);
+      localStorage.setItem('airdrop_amounts', amounts)
     }
-  }, [amounts]);
+  }, [amounts])
 
   useEffect(() => {
     if (tokenData && tokenData[3]?.result) {
-      const balance = Number(tokenData[3].result);
-      const totalAmount = Number(total);
-      setHasEnoughTokens(balance >= totalAmount);
+      const balance = Number(tokenData[3].result)
+      const totalAmount = Number(total)
+      setHasEnoughTokens(balance >= totalAmount)
     }
-  }, [tokenData, total]);
+  }, [tokenData, total])
 
   async function getApprovedAmount(
     tSenderAddress: string | null
   ): Promise<number> {
     if (!tSenderAddress) {
-      alert("TSender address not found, please use a supported chain");
-      return 0;
+      alert("TSender address not found, please use a supported chain")
+      return 0
     }
     // read from the chain to see if we have approved enough tokens
     // allowance
@@ -102,20 +102,20 @@ export default function AirdropForm() {
       address: tokenAddress as `0x${string}`,
       functionName: "allowance",
       args: [account.address, tSenderAddress as `0x${string}`],
-    });
+    })
     // token.allowance(account,tsender)
-    return allowanceAmount as number;
+    return allowanceAmount as number
   }
 
   function clearFormData() {
     if (typeof window !== 'undefined') {
-      localStorage.removeItem('airdrop_tokenAddress');
-      localStorage.removeItem('airdrop_recipients');
-      localStorage.removeItem('airdrop_amounts');
+      localStorage.removeItem('airdrop_tokenAddress')
+      localStorage.removeItem('airdrop_recipients')
+      localStorage.removeItem('airdrop_amounts')
     }
-    setTokenAddress("");
-    setRecipients("");
-    setAmounts("");
+    setTokenAddress("")
+    setRecipients("")
+    setAmounts("")
   }
 
   async function handleSubmit() {
@@ -123,56 +123,56 @@ export default function AirdropForm() {
     // 1a. If already approve, moved to step 2
     // 2. Call the airdrop function on the tsender contract
     // 3. Wait for the transaction to be mined
-    const tSenderAddress = chainsToTSender[chainId]["tsender"];
-    const approveAmount = await getApprovedAmount(tSenderAddress);
-    console.log("approveAmount:", approveAmount);
+    const tSenderAddress = chainsToTSender[chainId]["tsender"]
+    const approveAmount = await getApprovedAmount(tSenderAddress)
+    console.log("approveAmount:", approveAmount)
 
-    if(approveAmount<total){
-      const approvalHash=await writeContractAsync({
-        abi:erc20Abi,
-        address:tokenAddress as `0x${string}`,
-        functionName:"approve",
-        args:[tSenderAddress as `0x${string}`, BigInt(total)]
+    if (approveAmount < total) {
+      const approvalHash = await writeContractAsync({
+        abi: erc20Abi,
+        address: tokenAddress as `0x${string}`,
+        functionName: "approve",
+        args: [tSenderAddress as `0x${string}`, BigInt(total)]
       })
 
-      const approvalReceipt = await waitForTransactionReceipt(config,{hash:approvalHash})
-      
-      console.log("Approval confirmed:",approvalReceipt)
-      const airdropHash= await writeContractAsync({
-        abi:tsenderAbi,
-        address:tSenderAddress as `0x${string}`,
-        functionName:"airdropERC20",
-        args:[tokenAddress,
-          recipients.split(/[,\n]+/).map(addr=>addr.trim()).filter(addr=>addr !== ''),
-          amounts.split(/[,\n]+/).map(amount=>amount.trim()).filter(amt => amt!==''),
+      const approvalReceipt = await waitForTransactionReceipt(config, { hash: approvalHash })
+
+      console.log("Approval confirmed:", approvalReceipt)
+      const airdropHash = await writeContractAsync({
+        abi: tsenderAbi,
+        address: tSenderAddress as `0x${string}`,
+        functionName: "airdropERC20",
+        args: [tokenAddress,
+          recipients.split(/[,\n]+/).map(addr => addr.trim()).filter(addr => addr !== ''),
+          amounts.split(/[,\n]+/).map(amount => amount.trim()).filter(amt => amt !== ''),
           BigInt(total)
         ]
       })
 
-      const airdropReceipt = await waitForTransactionReceipt(config,{hash:airdropHash})
-      console.log("Airdrop confirmed:",airdropReceipt)
-      
-      // Limpiar los datos del formulario después del éxito
-      clearFormData();
+      const airdropReceipt = await waitForTransactionReceipt(config, { hash: airdropHash })
+      console.log("Airdrop confirmed:", airdropReceipt)
 
-    }else {
-      const airdropHash= await writeContractAsync({
-        abi:tsenderAbi,
-        address:tSenderAddress as `0x${string}`,
-        functionName:"airdropERC20",
-        args:[tokenAddress,
-          recipients.split(/[,\n]+/).map(addr=>addr.trim()).filter(addr=>addr !== ''),
-          amounts.split(/[,\n]+/).map(amount=>amount.trim()).filter(amt => amt!==''),
+      // Limpiar los datos del formulario después del éxito
+      clearFormData()
+
+    } else {
+      const airdropHash = await writeContractAsync({
+        abi: tsenderAbi,
+        address: tSenderAddress as `0x${string}`,
+        functionName: "airdropERC20",
+        args: [tokenAddress,
+          recipients.split(/[,\n]+/).map(addr => addr.trim()).filter(addr => addr !== ''),
+          amounts.split(/[,\n]+/).map(amount => amount.trim()).filter(amt => amt !== ''),
           BigInt(total)
         ]
       })
 
-      const airdropReceipt = await waitForTransactionReceipt(config,{hash:airdropHash})
-      console.log("Airdrop confirmed:",airdropReceipt)
-      
+      const airdropReceipt = await waitForTransactionReceipt(config, { hash: airdropHash })
+      console.log("Airdrop confirmed:", airdropReceipt)
+
       // Limpiar los datos del formulario después del éxito
-      clearFormData();
-    }    
+      clearFormData()
+    }
 
 
   }
@@ -222,20 +222,20 @@ export default function AirdropForm() {
           </div>
           <div className="flex justify-between items-center">
             <span className="text-gray-300 font-medium">Token Symbol:</span>
-            <span className="text-cyan-400 font-semibold">{tokenData?.[1]?.result as string|| 'N/A'}</span>
+            <span className="text-cyan-400 font-semibold">{tokenData?.[1]?.result as string || 'N/A'}</span>
           </div>
           <div className="flex justify-between items-center">
             <span className="text-gray-300 font-medium">Token Decimals:</span>
-            <span className="text-cyan-400 font-semibold">{tokenData?.[2]?.result as string|| 'N/A'}</span>
+            <span className="text-cyan-400 font-semibold">{tokenData?.[2]?.result as string || 'N/A'}</span>
           </div>
           <div className="flex justify-between items-center border-t border-slate-600 pt-2 mt-3">
             <span className="text-gray-300 font-medium">Total Amount ( wei ):</span>
             <span className="text-green-400 font-bold">{total.toString() || "0"} </span>
           </div>
-            <div className="flex justify-between items-center ">
+          <div className="flex justify-between items-center ">
             <span className="text-gray-300 font-medium">Total Amount (tokens):</span>
             <span className="text-green-400 font-bold">{formatTokenAmount(total, tokenData?.[2]?.result as number)} </span>
-            </div>
+          </div>
         </div>
       </div>
 
@@ -256,5 +256,5 @@ export default function AirdropForm() {
         Send Tokens
       </button>
     </div>
-  );
+  )
 }
